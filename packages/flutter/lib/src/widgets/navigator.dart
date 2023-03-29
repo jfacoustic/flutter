@@ -5025,20 +5025,55 @@ class NavigatorState extends State<Navigator> with TickerProviderStateMixin, Res
   /// ```
   /// {@end-tool}
   void popUntil(RoutePredicate predicate) {
-    _RouteEntry? candidate = _history.cast<_RouteEntry?>().lastWhere(
-      (_RouteEntry? e) => e != null && _RouteEntry.isPresentPredicate(e),
-      orElse: () => null,
-    );
+    _RouteEntry? candidate = _getCandidate();
+
     while(candidate != null) {
       if (predicate(candidate.route)) {
         return;
       }
+
       pop();
-      candidate = _history.cast<_RouteEntry?>().lastWhere(
-        (_RouteEntry? e) => e != null && _RouteEntry.isPresentPredicate(e),
-        orElse: () => null,
-      );
+
+      candidate = _getCandidate();
     }
+  }
+
+  _RouteEntry? _getCandidate() 
+     => _history.cast<_RouteEntry?>().lastWhere(
+      (_RouteEntry? e) => e != null && _RouteEntry.isPresentPredicate(e),
+      orElse: () => null,
+    );
+
+  /// Calls [maybePop] repeatedly until the predicate returns true
+  /// Allows user to handle popping to a route that doesn't exist in the stack.
+  ///
+  /// Typical usage is as follows:
+  /// 
+  /// ```dart
+  /// Future<void> _doLogout() async {
+  ///   final result = await navigator.maybePopUntil(ModalRoute.withName('/login', onFailure: (route) => print(route)));
+  /// }
+  Future<bool> maybePopUntil(RoutePredicate predicate, { Function(Route<dynamic>? entry)? onFailure }) async {
+    _RouteEntry? candidate = _getCandidate();
+
+    while(candidate != null) {
+      if(predicate(candidate.route)) {
+        return true;
+      }
+      
+      final bool result = await maybePop();
+
+      if(!result) {
+        if(onFailure != null) {
+          onFailure(candidate.route);
+        }
+        return false;
+      }
+
+      candidate = _getCandidate();
+    }
+
+    return true;
   }
 
   /// Immediately remove `route` from the navigator, and [Route.dispose] it.
